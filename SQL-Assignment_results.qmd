@@ -1,0 +1,214 @@
+---
+title: "SQL Assignment"
+format: 
+  html:
+    toc: true
+    toc_float: true
+    toc-depth: 3
+    embed-resources: true
+editor: visual
+---
+
+## loading packajes
+
+```{r}
+#| warning: False
+#| code-fold: true
+
+setwd("C:/Users/97252/Desktop/תואר שני/מיומנויות במדעי הנתונים")
+
+
+library(ggplot2)
+library(dplyr)
+library(dbplyr)
+library(DBI)
+library(dplyr)
+library(dbplyr)
+library(RSQLite)
+library(odbc)
+library(knitr)
+```
+
+## setup the con_chocolate data-base connection
+
+```{r}
+#| code-fold: true
+
+con_chocolate <- DBI::dbConnect(drv = RSQLite::SQLite(),
+dbname = "chocolate.sqlite")
+
+
+# viewing 'customers' table
+customers <- DBI::dbReadTable(con_chocolate, "customers")
+
+# viewing 'orders' table
+orders <- DBI::dbReadTable(con_chocolate, "orders")
+
+# viewing 'products' table
+products <- DBI::dbReadTable(con_chocolate, "products")
+
+# viewing 'salesreps' table
+salesreps <- DBI::dbReadTable(con_chocolate, "salesreps")
+
+
+```
+
+## Question 1:
+
+Based on the query supplied, the customer's request was to identify the costumer who spent the most money on orders since 1.1.23. the sum_total calculates for each cid (costumer id) the total amount spent by multiplying the price of the product by the quantity of each product ordered, per costumer.
+
+-   The products and the orders tables are joint together using the shared pid column.
+-   The query filters orders made after January 1, 2023, using WHERE
+-   The final SELECT brings together the columns from the total_orders and the costumer details from the 'customers' table. then arranges the sum_total in descending order and than limits the result to the first row= the top customer who spent the most.
+
+```{sql, connection = con_chocolate, output.var = "Results_Q1"}
+
+
+WITH total_orders AS (
+SELECT cid, SUM(Price * amount) AS sum_total
+FROM `orders`
+LEFT JOIN products USING (pid)
+WHERE (sale_date > '2023-01-01')
+GROUP BY cid
+)
+SELECT *
+FROM total_orders
+LEFT JOIN customers USING (cid)
+ORDER BY sum_total DESC
+LIMIT 1
+
+
+```
+
+It seems That Joshua Beieler that lives in Michigan is the costumer that spent the most money since 1.1.23
+
+```{r}
+#| code-fold: true
+
+kable(Results_Q1)
+
+```
+
+## Question 2:
+
+-   The 'sales_rep_performance' aggregates sales data per sales rep, calculating total sales and comparing these to the yearly average to spotlight the top performer.
+-   The 'top_sales_rep' filters out the sales rep that made the larger number of sales compared to the average of all sales reps that were recruited in the same year as him
+-   The 'top_customer' identifies the customer who has made the largest purchase (in terms of total spent) from the sales made by the top-performing sales rep.
+-   The 'top_product' will show which candy bar has been sold the most by the top-performing sales rep.
+-   The final 'SELECT' combines the results to present the top sales rep's ID, name, year joined, total and average sales, alongside their top customer's ID and name with total spent, and the most sold candy bar's ID and name with the quantity sold.
+
+```{r}
+#| code-fold: true
+
+
+Result_Q2 <- DBI::dbGetQuery(con_chocolate, "WITH sales_rep_performance AS (
+    SELECT sr.srid, sr.year_joined, sr.Name AS sales_rep_Name,
+        COUNT(o.amount) AS total_sales, 
+        AVG(COUNT(o.amount)) OVER (PARTITION BY sr.year_joined) AS avg_sales_per_year
+    FROM salesreps sr
+    JOIN orders o ON sr.srid = o.srid
+    GROUP BY sr.srid, sr.year_joined, sr.Name
+),
+sales_gap AS (
+    SELECT srid, total_sales, sales_rep_Name, year_joined, avg_sales_per_year,
+        (total_sales - avg_sales_per_year) AS sales_gap 
+    FROM sales_rep_performance
+),
+top_sales_rep AS (
+    SELECT srid, total_sales, sales_rep_Name, year_joined, avg_sales_per_year,
+        sales_gap
+    FROM sales_gap
+    ORDER BY sales_gap DESC -- Order by the gap to find the highest positive gap
+    LIMIT 1
+),
+top_customer AS (
+    SELECT o.srid, o.cid, c.Name AS customer_name,
+        SUM(o.amount * p.Price) AS total_spent
+    FROM orders o
+    JOIN customers c ON o.cid = c.cid
+    JOIN products p ON o.pid = p.pid
+    WHERE o.srid = (SELECT srid FROM top_sales_rep)
+    GROUP BY o.srid, o.cid, c.Name
+    ORDER BY total_spent DESC
+    LIMIT 1
+),
+top_product AS (
+    SELECT o.srid, o.pid, p.candy_names AS Candy_name, 
+        SUM(o.amount) AS quantity_sold 
+    FROM orders o
+    JOIN products p ON o.pid = p.pid
+    WHERE o.srid = (SELECT srid FROM top_sales_rep) 
+    GROUP BY o.srid, p.pid, p.candy_names
+    ORDER BY quantity_sold DESC
+    LIMIT 1
+)
+SELECT 
+    tsr.srid AS sales_rep_id, tsr.sales_rep_Name, tsr.year_joined, tsr.total_sales,
+    tsr.avg_sales_per_year, tsr.sales_gap, tc.cid AS top_customer_id, tc.customer_name, 
+    tc.total_spent,tp.pid AS most_sold_candy_bar_pid, tp.Candy_name, tp.quantity_sold
+FROM top_sales_rep tsr
+JOIN top_customer tc ON tsr.srid = tc.srid
+CROSS JOIN top_product tp;
+")
+
+kable(Result_Q2)
+```
+
+
+
+```{sql, connection = con_chocolate, output.var = "q2 nisayon shuv"}
+WITH sales_rep_performance AS (
+    SELECT sr.srid, sr.year_joined, sr.Name AS sales_rep_Name,
+        COUNT(o.amount) AS total_sales, 
+        AVG(COUNT(o.amount)) OVER (PARTITION BY sr.year_joined) AS avg_sales_per_year
+    FROM salesreps sr
+    JOIN orders o ON sr.srid = o.srid
+    GROUP BY sr.srid, sr.year_joined, sr.Name
+),
+sales_gap AS (
+    SELECT srid, total_sales, sales_rep_Name, year_joined, avg_sales_per_year,
+        (total_sales - avg_sales_per_year) AS sales_gap 
+    FROM sales_rep_performance
+),
+top_sales_rep AS (
+    SELECT 
+        srid, total_sales, sales_rep_Name, year_joined, avg_sales_per_year,
+        sales_gap
+    FROM sales_gap
+    ORDER BY sales_gap DESC -- Order by the gap to find the highest positive gap
+    LIMIT 1
+),
+top_customer AS (
+    SELECT o.srid, o.cid, c.Name AS customer_name,
+        SUM(o.amount * p.Price) AS total_spent
+    FROM orders o
+    JOIN customers c ON o.cid = c.cid
+    JOIN products p ON o.pid = p.pid
+    WHERE o.srid = (SELECT srid FROM top_sales_rep)
+    GROUP BY o.srid, o.cid, c.Name
+    ORDER BY total_spent DESC
+    LIMIT 1
+),
+top_product AS (
+    SELECT 
+        o.srid, 
+        o.pid, 
+        p.candy_names AS Candy_name, 
+        SUM(o.amount) AS quantity_sold 
+    FROM orders o
+    JOIN products p ON o.pid = p.pid
+    WHERE o.srid = (SELECT srid FROM top_sales_rep) 
+    GROUP BY o.srid, p.pid, p.candy_names
+    ORDER BY quantity_sold DESC
+    LIMIT 1
+)
+SELECT 
+    tsr.srid AS sales_rep_id, tsr.sales_rep_Name, tsr.year_joined, tsr.total_sales,
+    tsr.avg_sales_per_year, tsr.sales_gap, tc.cid AS top_customer_id, tc.customer_name, 
+    tc.total_spent,tp.pid AS most_sold_candy_bar_pid, tp.Candy_name, tp.quantity_sold
+FROM top_sales_rep tsr
+JOIN top_customer tc ON tsr.srid = tc.srid
+CROSS JOIN top_product tp;
+
+```
+
