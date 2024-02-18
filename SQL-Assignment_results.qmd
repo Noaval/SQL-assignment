@@ -35,7 +35,7 @@ library(knitr)
 #| code-fold: true
 
 con_chocolate <- DBI::dbConnect(drv = RSQLite::SQLite(),
-dbname = "chocolate.sqlite")
+dbname = "C:/Users/97252/Documents/GitHub/SQL assignment/SQL-assignment/chocolate.sqlite")
 
 
 # viewing 'customers' table
