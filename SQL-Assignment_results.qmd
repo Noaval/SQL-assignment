@@ -15,7 +15,7 @@ editor: visual
 #| warning: False
 #| code-fold: true
 
-setwd("C:/Users/97252/Desktop/תואר שני/מיומנויות במדעי הנתונים")
+setwd("C:/Users/97252/Documents/GitHub/SQL assignment/SQL-assignment")
 
 
 library(ggplot2)
@@ -154,8 +154,6 @@ CROSS JOIN top_product tp;
 kable(Result_Q2)
 ```
 
-
-
 ```{sql, connection = con_chocolate, output.var = "q2 nisayon shuv"}
 WITH sales_rep_performance AS (
     SELECT sr.srid, sr.year_joined, sr.Name AS sales_rep_Name,
@@ -211,4 +209,3 @@ JOIN top_customer tc ON tsr.srid = tc.srid
 CROSS JOIN top_product tp;
 
 ```
-
