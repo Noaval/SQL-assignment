@@ -101,12 +101,13 @@ kable(Results_Q1)
 #| code-fold: true
 
 
-Result_Q2 <- DBI::dbGetQuery(con_chocolate, "WITH sales_rep_performance AS (
-    SELECT sr.srid, sr.year_joined, sr.Name AS sales_rep_Name,
+Result_Q2 <- DBI::dbGetQuery(con_chocolate, "
+WITH sales_rep_performance AS (
+    SELECT sr.srid, sr.year_joined, sr.Name AS sales_rep_Name, 
         COUNT(o.amount) AS total_sales, 
         AVG(COUNT(o.amount)) OVER (PARTITION BY sr.year_joined) AS avg_sales_per_year
     FROM salesreps sr
-    JOIN orders o ON sr.srid = o.srid
+    JOIN orders o USING (srid)
     GROUP BY sr.srid, sr.year_joined, sr.Name
 ),
 sales_gap AS (
@@ -119,15 +120,15 @@ top_sales_rep AS (
         srid, total_sales, sales_rep_Name, year_joined, avg_sales_per_year,
         sales_gap
     FROM sales_gap
-    ORDER BY sales_gap DESC -- Order by the gap to find the highest positive gap
+    ORDER BY sales_gap DESC 
     LIMIT 1
 ),
 top_customer AS (
     SELECT o.srid, o.cid, c.Name AS customer_name,
         SUM(o.amount * p.Price) AS total_spent
     FROM orders o
-    JOIN customers c ON o.cid = c.cid
-    JOIN products p ON o.pid = p.pid
+    JOIN customers c USING (cid)
+    JOIN products p USING (pid)
     WHERE o.srid = (SELECT srid FROM top_sales_rep)
     GROUP BY o.srid, o.cid, c.Name
     ORDER BY total_spent DESC
@@ -140,7 +141,7 @@ top_product AS (
         p.candy_names AS Candy_name, 
         SUM(o.amount) AS quantity_sold 
     FROM orders o
-    JOIN products p ON o.pid = p.pid
+    JOIN products p USING (pid)
     WHERE o.srid = (SELECT srid FROM top_sales_rep) 
     GROUP BY o.srid, p.pid, p.candy_names
     ORDER BY quantity_sold DESC
@@ -149,7 +150,7 @@ top_product AS (
 SELECT 
     tsr.srid AS sales_rep_id, tsr.sales_rep_Name, tsr.year_joined, tsr.total_sales,
     tsr.avg_sales_per_year, tsr.sales_gap, tc.cid AS top_customer_id, tc.customer_name, 
-    tc.total_spent,tp.pid AS most_sold_candy_bar_pid, tp.Candy_name, tp.quantity_sold
+    tc.total_spent, tp.pid AS most_sold_candy_bar_pid, tp.Candy_name, tp.quantity_sold
 FROM top_sales_rep tsr
 JOIN top_customer tc ON tsr.srid = tc.srid
 CROSS JOIN top_product tp;
@@ -157,3 +158,5 @@ CROSS JOIN top_product tp;
 
 kable(Result_Q2)
 ```
+
+
