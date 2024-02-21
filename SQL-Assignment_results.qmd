@@ -158,5 +158,3 @@ CROSS JOIN top_product tp;
 
 kable(Result_Q2)
 ```
-
-
